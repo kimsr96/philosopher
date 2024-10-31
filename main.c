@@ -6,66 +6,46 @@
 /*   By: seungryk <seungryk@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/04/16 13:02:29 by seungryk          #+#    #+#             */
-/*   Updated: 2024/04/28 16:17:25 by seungryk         ###   ########.fr       */
+/*   Updated: 2024/07/22 15:04:16 by seungryk         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "philo.h"
 
-int	init_mutex(t_rules *rules, int num)
+int	start_monitoring(t_rules *rules)
 {
-	int		i;
-	int		ret;
+	pthread_t	monitor_thread;
 
-	i = 0;
-	rules->mutex.forks = malloc(sizeof(pthread_mutex_t) * num);
-	if (rules->mutex.forks == NULL)
+	if (pthread_create(&monitor_thread, NULL, &monitoring, rules) != 0)
 		return (-1);
-	rules->mutex.is_occupy = malloc(sizeof(char) * num);
-	if (rules->mutex.is_occupy == NULL)
-		return (-1);
-	while (i < num)
-	{
-		ret = pthread_mutex_init(&(rules->mutex.forks[i]), NULL);
-		if (ret != 0)
-			return (-1);
-		rules->mutex.is_occupy[i] = '0';
-		i++;
-	}
-	pthread_mutex_init(&(rules->mutex.mutex_die), NULL);
-	pthread_mutex_init(&(rules->mutex.print), NULL);
-	rules->mutex.die = 0;
-	return (0);
-}
-
-int	init_rules(t_rules *rules, char **argv)
-{
-	memset(rules, 0, sizeof(*rules));
-	rules->num_of_philo = ft_atoi(argv[1]);
-	rules->time_to_die = ft_atoi(argv[2]);
-	rules->time_to_eat = ft_atoi(argv[3]);
-	rules->time_to_sleep = ft_atoi(argv[4]);
-	rules->philo = malloc(sizeof(t_philo) * rules->num_of_philo);
-	if (rules->philo == NULL)
-		return (-1);
-	if (init_mutex(rules, rules->num_of_philo) == -1)
+	if (pthread_join(monitor_thread, NULL) != 0)
 		return (-1);
 	return (0);
 }
 
-int	destroy_mutex(t_rules *rules, int num)
+int	create_thread(t_rules *rules)
 {
-	int	i;
-	int	ret;
+	int			i;
+	t_philo		*philo;
 
-	i = 0;
-	while (i < num)
+	i = -1;
+	philo = rules->philo;
+	while (++i < rules->num_of_philo)
 	{
-		ret = pthread_mutex_destroy(&(rules->mutex.forks[i]));
-		if (ret != 0)
+		philo[i].id = i;
+		philo[i].rules = rules;
+		if (pthread_create \
+				(&(philo[i].thread_id), NULL, thread_f, &philo[i]) != 0)
 			return (-1);
-		i++;
+		usleep(100);
 	}
+	pthread_mutex_lock(&rules->mutex.m_start);
+	i = -1;
+	rules->start = 1;
+	rules->begin_time = get_time();
+	while (++i < rules->num_of_philo)
+		philo[i].last_eat_time = rules->begin_time;
+	pthread_mutex_unlock(&rules->mutex.m_start);
 	return (0);
 }
 
@@ -73,17 +53,19 @@ int	main(int argc, char **argv)
 {
 	t_rules	rules;
 
-	if (argc != 5)
-		return (0);
-	if (init_rules(&rules, argv) == -1)
-		return (0);
+	if (argc != 5 && argc != 6)
+		return (1);
+	if (init_rules(&rules, argv, argc) == -1)
+		return (1);
 	if (create_thread(&rules) == -1)
-		return (0);
-	if (join_thread(rules.philo, rules.num_of_philo) == -1)
-		return (0);
-	if (destroy_mutex(&rules, rules.num_of_philo) == -1)
-		return (0);
-	free(rules.mutex.forks);
-	free(rules.philo);
+	{
+		ft_exit(&rules);
+		return (1);
+	}
+	if (start_monitoring(&rules) == -1)
+		return (1);
+	if (join_thread((&rules)->philo, rules.num_of_philo) == -1)
+		return (1);
+	ft_exit(&rules);
 	return (0);
 }

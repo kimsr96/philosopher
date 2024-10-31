@@ -6,11 +6,35 @@
 /*   By: seungryk <seungryk@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/04/19 10:23:29 by seungryk          #+#    #+#             */
-/*   Updated: 2024/04/28 16:25:59 by seungryk         ###   ########.fr       */
+/*   Updated: 2024/07/22 15:15:26 by seungryk         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "philo.h"
+
+int	check_num(t_rules *rules, int argc, char **argv)
+{
+	int	i;
+	int	j;
+
+	i = 1;
+	while (i < argc)
+	{
+		j = 0;
+		while (argv[i][j])
+		{
+			if ((argv[i][j] < '0' || argv[i][j] > '9') && argv[i][j] != '+')
+				return (-1);
+			j++;
+		}
+		i++;
+	}
+	rules->num_of_philo = ft_atoi(argv[1]);
+	rules->time_to_die = ft_atoi(argv[2]);
+	rules->time_to_eat = ft_atoi(argv[3]);
+	rules->time_to_sleep = ft_atoi(argv[4]);
+	return (0);
+}
 
 int	ft_atoi(char *str)
 {
@@ -43,31 +67,32 @@ int	ft_atoi(char *str)
 
 int	print_msg(t_philo *philo, t_rules *rules, char *str)
 {
-	int			id;
 	uint64_t	time;
 
-	id = philo->id;
-	pthread_mutex_lock(&(rules->mutex.print));
+	pthread_mutex_lock(&rules->mutex.print);
+	if (is_dead(rules))
+	{
+		pthread_mutex_unlock(&rules->mutex.print);
+		return (1);
+	}
 	time = get_time() - rules->begin_time;
-	printf("%llu %d %s\n", time, id, str);
-	pthread_mutex_unlock(&(rules->mutex.print));
+	printf("%llu %d %s\n", time, philo->id + 1, str);
+	pthread_mutex_unlock(&rules->mutex.print);
 	return (0);
 }
 
-void	timer(uint64_t time)
+int	timer(t_rules *rules, uint64_t time)
 {
 	uint64_t	start;
-	uint64_t	now;
-	uint64_t	gap;
 
 	start = get_time();
-	while (1)
+	while (start + time > get_time())
 	{
-		now = get_time();
-		gap = now - start;
-		if (gap > time)
-			break ;
+		if (is_dead(rules))
+			return (1);
+		usleep(200);
 	}
+	return (0);
 }
 
 uint64_t	get_time(void)
